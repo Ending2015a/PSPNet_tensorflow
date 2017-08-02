@@ -8,7 +8,7 @@ import math
 data_root = '/data/cityscapes_dataset/cityscape/'
 train_list = '/data/cityscapes_dataset/cityscape/list.txt'
 
-BATCH_SIZE = 4
+BATCH_SIZE = 1
 IMAGE_HEIGHT = 1024
 IMAGE_WIDTH = 2048
 CROP_SIZE = 713
