@@ -56,14 +56,14 @@ def _generate_image_and_label_batch(image, anno, min_queue_examples, batch_size,
 		image_batch, anno_batch = tf.train.shuffle_batch(
 				[image, anno],
 				batch_size=batch_size,
-				num_threads=num_preprocess_threads,
-				capacity=min_queue_examples + 3 * batch_size,
+				enqueue_many=True,
+				capacity=1000,
 				min_after_dequeue=min_queue_examples)
 	else:
 		image_batch, anno_batch = tf.train.batch(
 				[image, anno],
 				batch_size=batch_size,
-				num_threads=num_preprocess_threads,
+				enqueue_many=True,
 				capacity=min_queue_examples + 3 * batch_size)
 
 	tf.summary.image('images', image)
@@ -147,14 +147,14 @@ def inputs(is_training):
 	min_queue_examples = 10 * BATCH_SIZE
 
 	img_batch, anno_batch = _generate_image_and_label_batch(sub_imgs, sub_annos, min_queue_examples, BATCH_SIZE, shuffle=is_training)
+	"""
 	shape = img_batch.get_shape().as_list()
 	dim = np.prod(shape[:2])
 	img_batch = tf.reshape(img_batch, [dim, CROP_SIZE, CROP_SIZE, NUM_CHANNELS])
 	anno_batch = tf.reshape(anno_batch, [dim, CROP_SIZE, CROP_SIZE, 1])
-	
+	"""
 	img_batch = tf.subtract(img_batch, IMG_MEAN)
 
-	print('original batch size: ', shape)
 	print('reshaped img_batch size: ', img_batch.get_shape())
 	print('reshaped anno_batch size: ', anno_batch.get_shape())
 
@@ -163,4 +163,14 @@ def inputs(is_training):
 if __name__ == "__main__":
 	img_batch, anno_batch = inputs(IS_TRAINING)
 	
-	
+	init = tf.global_variables_initializer()
+	sess = tf.Session()
+	sess.run(init)
+
+	coord = tf.train.Coordinator()
+	threads = tf.train.start_queue_runners(coord=coord, sess=sess)
+
+	print(sess.run(img_batch))
+
+	coord.request_stop()
+	coord.join(threads)

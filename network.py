@@ -115,7 +115,8 @@ class Network(object):
              relu=True,
              padding=DEFAULT_PADDING,
              group=1,
-             biased=True):
+             biased=True): 
+        print(name)
         # Verify that the padding is acceptable
         self.validate_padding(padding)
         # Get the number of channels in the input

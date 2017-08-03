@@ -6,16 +6,20 @@ from preprocess import inputs
 IS_TRAINING = True
 NUM_CLASSES = 19
 CROP_SIZE = 713
+OUT_SIZE = 90
 
 if __name__ == '__main__':
-	coord = tf.train.Coordinator()
-
 	img_batch, anno_batch = inputs(IS_TRAINING)
 	
 	net = PSPNetModel({'data': img_batch}, is_training=IS_TRAINING, num_classes=NUM_CLASSES+1)
 	raw_output = net.get_output()
+	print('get raw output')
+	print(raw_output.get_shape())
 	resized_output = tf.image.resize_images(raw_output, [CROP_SIZE, CROP_SIZE])
+	print('get output and resized')
+	print(resized_output.get_shape())
 
+	anno_batch = tf.image.resize_images(anno_batch, [OUT_SIZE, OUT_SIZE])
 	anno_batch = tf.squeeze(anno_batch, squeeze_dims=[3])
 	anno_batch = tf.cast(anno_batch, tf.uint8)
 	
@@ -23,29 +27,37 @@ if __name__ == '__main__':
 	labels = anno_batch_onehot[:, :, :, 0:19]
 	void_label = anno_batch_onehot[:, :, :, 255:]
 	gtFine = tf.concat([labels, void_label], axis=3)
+	print('get onehot label')
+	print(gtFine.get_shape())
 
 	flat_gt = tf.reshape(gtFine, [-1, NUM_CLASSES+1])
-	flat_prediction = tf.reshape(resized_output, [-1, NUM_CLASSES+1])
+	flat_prediction = tf.reshape(raw_output, [-1, NUM_CLASSES+1])
+	print(flat_gt.get_shape())
+	print(flat_prediction.get_shape())
 
-	loss = tf.nn.softmax_cross_entropy_with_logits(logits=flat_prediction, labels=flat_gt)
+	cross_entropies = tf.nn.softmax_cross_entropy_with_logits(logits=flat_prediction, labels=flat_gt)
+	cross_entropy_sum = tf.reduce_sum(cross_entropies)
 
-	reduced_loss = tf.reduce_mean(loss)
-	train_op = tf.train.AdamOptimizer(1e-4).minimize(reduced_loss)
+	print(cross_entropies.get_shape())
+	print(cross_entropy_sum.get_shape())
+
+	optimizer = tf.train.GradientDescentOptimizer(0.5)
+	trainnn = optimizer.minimize(cross_entropy_sum)
+	train_step = tf.train.AdamOptimizer(learning_rate=0.0001).minimize(cross_entropy_sum)
+	
+	print('set config')
 		
-
-	config = tf.ConfigProto()
-	config.gpu_options.allow_growth = True
-	sess = tf.Session(config=config)
+	sess = tf.Session()
 	init = tf.global_variables_initializer()
-	
 	sess.run(init)
+
+	coord = tf.train.Coordinator()
 	threads = tf.train.start_queue_runners(coord=coord, sess=sess)
+
+	for i in range(20):
+		loss, __ = sess.run([cross_entropy_sum, trainnn])
+		print(loss)
 	
-	for i in range(2):
-		print(sess.run(resized_output))
-		"""losss, _ = sess.run([reduced_loss, train_op])
-		print(reduced_loss)"""
-			
 	coord.request_stop()
 	coord.join(threads)
 		
