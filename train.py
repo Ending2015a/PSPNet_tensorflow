@@ -30,19 +30,12 @@ if __name__ == '__main__':
 	print('get onehot label')
 	print(gtFine.get_shape())
 
-	flat_gt = tf.reshape(gtFine, [-1, NUM_CLASSES+1])
-	flat_prediction = tf.reshape(raw_output, [-1, NUM_CLASSES+1])
-	print(flat_gt.get_shape())
-	print(flat_prediction.get_shape())
-
-	cross_entropies = tf.nn.softmax_cross_entropy_with_logits(logits=flat_prediction, labels=flat_gt)
+	cross_entropies = tf.nn.softmax_cross_entropy_with_logits(logits=raw_output, labels=gtFine, name="softmax")
 	cross_entropy_sum = tf.reduce_sum(cross_entropies)
 
 	print(cross_entropies.get_shape())
 	print(cross_entropy_sum.get_shape())
 
-	optimizer = tf.train.GradientDescentOptimizer(0.5)
-	trainnn = optimizer.minimize(cross_entropy_sum)
 	train_step = tf.train.AdamOptimizer(learning_rate=0.0001).minimize(cross_entropy_sum)
 	
 	print('set config')
@@ -54,9 +47,9 @@ if __name__ == '__main__':
 	coord = tf.train.Coordinator()
 	threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
-	for i in range(20):
-		loss, __ = sess.run([cross_entropy_sum, trainnn])
-		print(loss)
+	for i in range(50000):
+		loss, __ = sess.run([cross_entropy_sum, train_step])
+		print('iter {0}: loss={1}'.format(i,loss))
 	
 	coord.request_stop()
 	coord.join(threads)

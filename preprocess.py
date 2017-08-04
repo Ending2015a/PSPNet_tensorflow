@@ -5,8 +5,8 @@ from PIL import Image
 import os
 import math
 
-data_root = '/data/cityscapes_dataset/cityscape/'
-train_list = '/data/cityscapes_dataset/cityscape/list.txt'
+data_root = '/home/joehsiao/Dataset/cityscapes'
+train_list = '/home/joehsiao/Dataset/cityscapes/train.txt'
 
 BATCH_SIZE = 1
 IMAGE_HEIGHT = 1024
@@ -25,9 +25,9 @@ def read_labeled_image_list(is_training, filelist):
 		f = open(filelist, 'r')
 
 	for line in f:
-		img_name, anno_name = line[:-1].split(' ') 
-		img_name = data_root + img_name
-		anno_name = data_root + anno_name
+		img_name, anno_name = line[:-1].split(' ')
+		img_name = os.path.join(data_root, img_name)
+		anno_name = os.path.join(data_root, anno_name)
 		
 		if not tf.gfile.Exists(img_name):
 			raise ValueError('Failed to find file: ' + img_name)
