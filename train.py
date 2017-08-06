@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import network
+import os
 from model import PSPNetModel
 from preprocess import inputs
 
@@ -14,11 +15,25 @@ POWER = 0.9
 MOMENTUM = 0.9
 DECAY_RATE = 0.0001
 MAXIMUM_ITER = 100000
-
+CHECKPOINT_PATH = None
+SNAPSHOT_DIR = './snapshots/'
 train_with_resized = False
 
 network.log_to_file()
 
+def save(saver, sess, logdir, step):
+	model_name = 'model.ckpt'
+	checkpoint_path = os.path.join(logdir, model_name)
+
+	if not os.path.exists(logdir):
+		os.makedirs(logdir)
+
+	saver.save(sess, checkpoint_path, global_step=step)
+	print('Checkpoint has been created.')
+
+def load(saver, sess, ckpt_path):
+	saver.restore(sess, ckpt_path)
+	print("Restored model from {}".format(ckpt_path))
 
 if __name__ == '__main__':
     img_batch, anno_batch = inputs(IS_TRAINING)
@@ -60,13 +75,29 @@ if __name__ == '__main__':
     init = tf.global_variables_initializer()
     sess.run(init)
 
+    restore_var = [v for v in tf.global_variables()]
+    saver = tf.train.Saver(var_list=tf.global_variables(), max_to_keep=10)
+    ckpt = tf.train.get_checkpoint_state(SNAPSHOT_DIR)
+    load_step = int(os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
+
+    if ckpt and ckpt.model_checkpoint_path:
+    	loader = tf.train.Saver(var_list=restore_var)
+    	load(loader, sess, ckpt.model_checkpoint_path)
+    else:
+    	print('No checkpoint file found.')
+
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
-    for i in range(MAXIMUM_ITER):
-        feed_dict = {step_ph: i}
+    for step in range(MAXIMUM_ITER):
+        feed_dict = {step_ph: step + load_step}
         loss, __, lr = sess.run([cross_entropy_sum, train_step, learning_rate], feed_dict=feed_dict)
-        print('iter {0}: loss={1}, lr: {2}'.format(i, loss, lr))
+        
+        if step % 100 == 0:
+			print('iter {0}: loss={1}, lr: {2}'.format(step + load_step, loss, lr))
+        if step % 1000 == 0:
+        	save(saver, sess, SNAPSHOT_DIR, step)
+        	print('iter {0}: save checkpoint'.format(step + load_step))
 
     coord.request_stop()
     coord.join(threads)
