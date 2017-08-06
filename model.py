@@ -400,22 +400,22 @@ class PSPNetModel(Network):
                    'conv5_3_increase_bn')
              .add(name='conv5_3_add')
              .relu(name='conv5_3_add_relu')
-             .avg_pool(90, 90, 90, 90, name='conv5_3_pool1')
+             .avg_pool(90, 90, 90, 90, pad=0, name='conv5_3_pool1')
              .conv(1, 1, 512, 1, 1, pad=0, biased=False, relu=False, name='conv5_3_pool1_conv')
              .batch_normalization(0.95, is_training=is_training, activation_fn=tf.nn.relu, name='conv5_3_pool1_conv_bn'))
 
         (self.feed('conv5_3_add_relu')
-             .avg_pool(45, 45, 45, 45, name='conv5_3_pool2')
+             .avg_pool(45, 45, 45, 45, pad=0, name='conv5_3_pool2')
              .conv(1, 1, 512, 1, 1, pad=0, biased=False, relu=False, name='conv5_3_pool2_conv')
              .batch_normalization(0.95, is_training=is_training, activation_fn=tf.nn.relu, name='conv5_3_pool2_conv_bn'))
 
         (self.feed('conv5_3_add_relu')
-             .avg_pool(30, 30, 30, 30, name='conv5_3_pool3')
+             .avg_pool(30, 30, 30, 30, pad=0, name='conv5_3_pool3')
              .conv(1, 1, 512, 1, 1, pad=0, biased=False, relu=False, name='conv5_3_pool3_conv')
              .batch_normalization(0.95, is_training=is_training, activation_fn=tf.nn.relu, name='conv5_3_pool3_conv_bn'))
 
         (self.feed('conv5_3_add_relu')
-             .avg_pool(15, 15, 15, 15, name='conv5_3_pool4')
+             .avg_pool(15, 15, 15, 15, pad=0, name='conv5_3_pool4')
              .conv(1, 1, 512, 1, 1, pad=0, biased=False, relu=False, name='conv5_3_pool4_conv')
              .batch_normalization(0.95, is_training=is_training, activation_fn=tf.nn.relu, name='conv5_3_pool4_conv_bn'))
 

@@ -1,8 +1,23 @@
 import numpy as np
 import tensorflow as tf
+import LogWriter as log
 slim = tf.contrib.slim
 
 DEFAULT_PADDING = 'VALID'
+
+LOG_TO_FILE = None
+
+def log_to_file(file='pyLog.log'):
+    global LOG_TO_FILE
+    LOG_TO_FILE = log.LogWriter(file)
+    LOG_TO_FILE.open()
+
+
+def log_info(msg):
+    if LOG_TO_FILE:
+        LOG_TO_FILE.Write(msg)
+    else:
+        print(msg)
 
 
 def layer(op):
@@ -120,7 +135,7 @@ class Network(object):
              padding_mode='CONSTANT',
              group=1,
              biased=False): 
-        print(name)
+        log_info(name)
         # Verify that the padding is acceptable
         self.validate_padding(pad)
         # Get the number of channels in the input
@@ -164,12 +179,12 @@ class Network(object):
             o_h = output.get_shape()[1]
             o_w = output.get_shape()[2]
 
-            logs  = 'Conv: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+            logs  = '    Conv: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
                 .format(name, i_w, i_h, o_w, o_h)
-            logs += '    size = {0} * {1}, kernels = {2}, stride = {3} * {4}, pad = {5}\n'\
+            logs += '        size = {0} * {1}, kernels = {2}, stride = {3} * {4}, pad = {5}\n'\
                     .format(k_w, k_h, c_o, s_w, s_h, pad)
-            logs += '    bias = {0}, relu = {1}\n'.format(biased, relu)
-            print(logs)
+            logs += '        bias = {0}, relu = {1}\n'.format(biased, relu)
+            log_info(logs)
 
             return output
 
@@ -186,6 +201,7 @@ class Network(object):
                     padding_mode='CONSTANT',
                     group=1,
                     biased=False):
+        log_info(name)
         # Verify that the padding is acceptable
         self.validate_padding(pad)
         # Get the number of channels in the input
@@ -228,12 +244,12 @@ class Network(object):
             o_h = output.get_shape()[1]
             o_w = output.get_shape()[2]
 
-            logs  = 'Atros: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+            logs  = '    Atros: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
                 .format(name, i_w, i_h, o_w, o_h)
-            logs += '    size = {0} * {1}, kernels = {2}, pad = {3}\n'\
+            logs += '        size = {0} * {1}, kernels = {2}, pad = {3}\n'\
                     .format(k_w, k_h, c_o, pad)
-            logs += '    bias = {0}, relu = {1}\n'.format(biased, relu)
-            print(logs)
+            logs += '        bias = {0}, relu = {1}\n'.format(biased, relu)
+            log_info(logs)
 
             return output
         
@@ -243,6 +259,7 @@ class Network(object):
 
     @layer
     def max_pool(self, input, k_h, k_w, s_h, s_w, name, pad=DEFAULT_PADDING, padding_mode='CONSTANT'):
+        log_info(name)
         self.validate_padding(pad)
 
         i_w = input.get_shape()[2]
@@ -263,22 +280,44 @@ class Network(object):
         o_w = output.get_shape()[2]
         o_h = output.get_shape()[1]
 
-        logs  = 'MaxP: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+        logs  = '    MaxP: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
                 .format(name, i_w, i_h, o_w, o_h)
-        logs += '    size = {0} * {1}, stride = {2} * {3}, pad = {4}\n'\
+        logs += '        size = {0} * {1}, stride = {2} * {3}, pad = {4}\n'\
                 .format(k_w, k_h, s_w, s_h, pad)
-        print(logs)
+        log_info(logs)
 
         return output
 
     @layer
-    def avg_pool(self, input, k_h, k_w, s_h, s_w, name, padding=DEFAULT_PADDING):
-        self.validate_padding(padding)
-        return tf.nn.avg_pool(input,
+    def avg_pool(self, input, k_h, k_w, s_h, s_w, name, pad=DEFAULT_PADDING, padding_mode='CONSTANT'):
+        log_info(name)
+        self.validate_padding(pad)
+
+        i_w = input.get_shape()[2]
+        i_h = input.get_shape()[1]
+
+        padding = pad
+        if isinstance(pad, int):
+            pad_mat = np.array([[0,0], [pad, pad], [pad, pad], [0, 0]])
+            input = tf.pad(input, paddings=pad_mat, mode=padding_mode)
+            padding = 'VALID'
+
+        output = tf.nn.avg_pool(input,
                               ksize=[1, k_h, k_w, 1],
                               strides=[1, s_h, s_w, 1],
                               padding=padding,
                               name=name)
+
+        o_w = output.get_shape()[2]
+        o_h = output.get_shape()[1]
+
+        logs  = '    AvgP: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+                .format(name, i_w, i_h, o_w, o_h)
+        logs += '        size = {0} * {1}, stride = {2} * {3}, pad = {4}\n'\
+                .format(k_w, k_h, s_w, s_h, pad)
+        log_info(logs)
+
+        return output
 
     @layer
     def lrn(self, input, radius, alpha, beta, name, bias=1.0):
@@ -348,14 +387,14 @@ class Network(object):
             o_w = output.get_shape()[2]
             o_h = output.get_shape()[1]
 
-            logs  = 'BN: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+            logs  = '    BN: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
                 .format(name, i_w, i_h, o_w, o_h)
-            logs += '    momentum = {0}, epsilon = {1}\n'\
+            logs += '        momentum = {0}, epsilon = {1}\n'\
                     .format(momentum, epsilon)
 
             if not activation_fn == None:
-                logs += '{0}: True\n'.format(activation_fn.__name__)
-            print(logs)
+                logs += '        {0}: True\n'.format(activation_fn.__name__)
+            log_info(logs)
 
             return output
 
@@ -366,6 +405,7 @@ class Network(object):
 
     @layer
     def concat_with_interp(self, inputs, nheight, nwidth, axis, name):
+        log_info(name)
     	for i in range(len(inputs)):
     		inputs[i] = tf.image.resize_images(inputs[i], [nheight, nwidth])
 
@@ -374,29 +414,30 @@ class Network(object):
         o_h = output.get_shape()[1]
         o_w = output.get_shape()[2]
 
-        logs =  'Concat & Interp: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+        logs =  '    Concat & Interp: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
             .format(name, '_', '_', o_w, o_h)
 
-        logs += '    axis = {0}\n'.format(axis)
+        logs += '        axis = {0}\n'.format(axis)
 
-        print(logs)
+        log_info(logs)
 
     	return output
 
     @layer
     def interp(self, input, zoom_factor, name):
+        log_info(name)
         shape = input.get_shape().as_list()
         i_h = shape[1]
         i_w = shape[2]
 
-        nh = i_h * zoom_factor
-        nw = i_w * zoom_factor
+        nh = i_h + (i_h-1) * (zoom_factor-1)
+        nw = i_w + (i_w-1) * (zoom_factor-1)
         output = tf.image.resize_images(input, [nh, nw])
 
-        logs =  'Interp: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+        logs =  '    Interp: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
             .format(name, i_w, i_h, nw, nh)
-        logs += '    zoom_factor = {0}\n'.format(zoom_factor)
+        logs += '        zoom_factor = {0}\n'.format(zoom_factor)
 
-        print(logs)
+        log_info(logs)
 
         return output

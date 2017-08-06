@@ -1,12 +1,17 @@
 import tensorflow as tf
 import numpy as np
+import network
 from model import PSPNetModel
 from preprocess import inputs
 
 IS_TRAINING = True
 NUM_CLASSES = 19
 CROP_SIZE = 713
-OUT_SIZE = 720
+OUT_SIZE = 713
+
+
+network.log_to_file()
+
 
 if __name__ == '__main__':
     img_batch, anno_batch = inputs(IS_TRAINING)
@@ -17,10 +22,10 @@ if __name__ == '__main__':
     net = PSPNetModel({'data': img_batch}, is_training=IS_TRAINING, num_classes=NUM_CLASSES+1)
     raw_output = net.get_output()
     print('raw_output: {0}'.format(raw_output.get_shape()))
-    resized_output = tf.image.resize_images(raw_output, [CROP_SIZE, CROP_SIZE])
-    print('resized_output: {0}'.format(resized_output.get_shape()))
+    #resized_output = tf.image.resize_images(raw_output, [CROP_SIZE, CROP_SIZE])
+    #print('resized_output: {0}'.format(resized_output.get_shape()))
 
-    anno_batch = tf.image.resize_images(anno_batch, [OUT_SIZE, OUT_SIZE])
+    #anno_batch = tf.image.resize_images(anno_batch, [OUT_SIZE, OUT_SIZE])
     anno_batch = tf.squeeze(anno_batch, squeeze_dims=[3])
     anno_batch = tf.cast(anno_batch, tf.uint8)
 
@@ -33,8 +38,7 @@ if __name__ == '__main__':
     cross_entropies = tf.nn.softmax_cross_entropy_with_logits(logits=raw_output, labels=gtFine, name="softmax")
     cross_entropy_sum = tf.reduce_sum(cross_entropies)
 
-    print(cross_entropies.get_shape())
-    print(cross_entropy_sum.get_shape())
+    print('start training')
 
     train_step = tf.train.AdamOptimizer(learning_rate=0.0001).minimize(cross_entropy_sum)
 
