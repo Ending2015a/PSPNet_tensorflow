@@ -1,8 +1,23 @@
 import numpy as np
 import tensorflow as tf
+import LogWriter as log
 slim = tf.contrib.slim
 
-DEFAULT_PADDING = 'SAME'
+DEFAULT_PADDING = 'VALID'
+
+LOG_TO_FILE = None
+
+def log_to_file(file='pyLog.log'):
+    global LOG_TO_FILE
+    LOG_TO_FILE = log.LogWriter(file)
+    LOG_TO_FILE.open()
+
+
+def log_info(msg):
+    if LOG_TO_FILE:
+        LOG_TO_FILE.Write(msg)
+    else:
+        print(msg)
 
 
 def layer(op):
@@ -76,7 +91,7 @@ class Network(object):
         assert len(args) != 0
         self.terminals = []
         for fed_layer in args:
-            if isinstance(fed_layer, basestring):
+            if isinstance(fed_layer, str):
                 try:
                     fed_layer = self.layers[fed_layer]
                 except KeyError:
@@ -95,37 +110,51 @@ class Network(object):
         ident = sum(t.startswith(prefix) for t, _ in self.layers.items()) + 1
         return '%s_%d' % (prefix, ident)
 
-    def make_var(self, name, shape):
+    def make_var(self, name, shape, initializer=tf.contrib.layers.xavier_initializer()):
         '''Creates a new TensorFlow variable.'''
-        return tf.get_variable(name, shape, trainable=self.trainable)
+        return tf.get_variable(name, shape, trainable=self.trainable, initializer=initializer)
 
     def validate_padding(self, padding):
         '''Verifies that the padding is one of the supported ones.'''
-        assert padding in ('SAME', 'VALID')
+        if isinstance(padding, str):
+            assert padding in ('SAME', 'VALID')
+        else:
+            assert isinstance(padding, int)
 
     @layer
     def conv(self,
              input,
-             k_h,
-             k_w,
-             c_o,
-             s_h,
-             s_w,
+             k_h,  # kernel height
+             k_w,  # kernel width
+             c_o,  # channel output
+             s_h,  # stride
+             s_w,  # stride
              name,
-             relu=True,
-             padding=DEFAULT_PADDING,
+             relu=False,
+             pad=DEFAULT_PADDING,
+             padding_mode='CONSTANT',
              group=1,
-             biased=True): 
-        print(name)
+             biased=False): 
+        log_info(name)
         # Verify that the padding is acceptable
-        self.validate_padding(padding)
+        self.validate_padding(pad)
         # Get the number of channels in the input
         c_i = input.get_shape()[-1]
         # Verify that the grouping parameter is valid
         assert c_i % group == 0
         assert c_o % group == 0
+        # get input size
+        i_h = input.get_shape()[1]
+        i_w = input.get_shape()[2]
         # Convolution for a given input and kernel
+        padding = pad
+        if isinstance(pad, int):
+            pad_mat = np.array([[0,0], [pad, pad], [pad, pad], [0, 0]])
+            input = tf.pad(input, paddings=pad_mat, mode=padding_mode)
+            padding = 'VALID'
+
         convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
+
         with tf.variable_scope(name) as scope:
             kernel = self.make_var('weights', shape=[k_h, k_w, c_i / group, c_o])
             if group == 1:
@@ -140,11 +169,23 @@ class Network(object):
                 output = tf.concat(3, output_groups)
             # Add the biases
             if biased:
-                biases = self.make_var('biases', [c_o])
+                biases = self.make_var('biases', [c_o], initializer=tf.zeros_initializer())
                 output = tf.nn.bias_add(output, biases)
             if relu:
                 # ReLU non-linearity
                 output = tf.nn.relu(output, name=scope.name)
+
+            #get output size
+            o_h = output.get_shape()[1]
+            o_w = output.get_shape()[2]
+
+            logs  = '    Conv: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+                .format(name, i_w, i_h, o_w, o_h)
+            logs += '        size = {0} * {1}, kernels = {2}, stride = {3} * {4}, pad = {5}\n'\
+                    .format(k_w, k_h, c_o, s_w, s_h, pad)
+            logs += '        bias = {0}, relu = {1}\n'.format(biased, relu)
+            log_info(logs)
+
             return output
 
     @layer
@@ -155,17 +196,28 @@ class Network(object):
                     c_o,
                     dilation,
                     name,
-                    relu=True,
-                    padding=DEFAULT_PADDING,
+                    relu=False,
+                    pad=DEFAULT_PADDING,
+                    padding_mode='CONSTANT',
                     group=1,
-                    biased=True):
+                    biased=False):
+        log_info(name)
         # Verify that the padding is acceptable
-        self.validate_padding(padding)
+        self.validate_padding(pad)
         # Get the number of channels in the input
         c_i = input.get_shape()[-1]
         # Verify that the grouping parameter is valid
         assert c_i % group == 0
         assert c_o % group == 0
+        # get input size
+        i_h = input.get_shape()[1]
+        i_w = input.get_shape()[2]
+        # Convolution for a given input and kernel
+        padding = pad
+        if isinstance(pad, int):
+            pad_mat = np.array([[0,0], [pad, pad], [pad, pad], [0, 0]])
+            input = tf.pad(input, paddings=pad_mat, mode=padding_mode)
+            padding = 'VALID'
         # Convolution for a given input and kernel
         convolve = lambda i, k: tf.nn.atrous_conv2d(i, k, dilation, padding=padding)
         with tf.variable_scope(name) as scope:
@@ -182,11 +234,23 @@ class Network(object):
                 output = tf.concat(3, output_groups)
             # Add the biases
             if biased:
-                biases = self.make_var('biases', [c_o])
+                biases = self.make_var('biases', [c_o], initializer = tf.zeros_initializer())
                 output = tf.nn.bias_add(output, biases)
             if relu:
                 # ReLU non-linearity
                 output = tf.nn.relu(output, name=scope.name)
+
+            #get output size
+            o_h = output.get_shape()[1]
+            o_w = output.get_shape()[2]
+
+            logs  = '    Atros: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+                .format(name, i_w, i_h, o_w, o_h)
+            logs += '        size = {0} * {1}, kernels = {2}, pad = {3}\n'\
+                    .format(k_w, k_h, c_o, pad)
+            logs += '        bias = {0}, relu = {1}\n'.format(biased, relu)
+            log_info(logs)
+
             return output
         
     @layer
@@ -194,22 +258,66 @@ class Network(object):
         return tf.nn.relu(input, name=name)
 
     @layer
-    def max_pool(self, input, k_h, k_w, s_h, s_w, name, padding=DEFAULT_PADDING):
-        self.validate_padding(padding)
-        return tf.nn.max_pool(input,
+    def max_pool(self, input, k_h, k_w, s_h, s_w, name, pad=DEFAULT_PADDING, padding_mode='CONSTANT'):
+        log_info(name)
+        self.validate_padding(pad)
+
+        i_w = input.get_shape()[2]
+        i_h = input.get_shape()[1]
+
+        padding = pad
+        if isinstance(pad, int):
+            pad_mat = np.array([[0,0], [pad, pad], [pad, pad], [0, 0]])
+            input = tf.pad(input, paddings=pad_mat, mode=padding_mode)
+            padding = 'VALID'
+
+        output = tf.nn.max_pool(input,
                               ksize=[1, k_h, k_w, 1],
                               strides=[1, s_h, s_w, 1],
                               padding=padding,
                               name=name)
 
+        o_w = output.get_shape()[2]
+        o_h = output.get_shape()[1]
+
+        logs  = '    MaxP: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+                .format(name, i_w, i_h, o_w, o_h)
+        logs += '        size = {0} * {1}, stride = {2} * {3}, pad = {4}\n'\
+                .format(k_w, k_h, s_w, s_h, pad)
+        log_info(logs)
+
+        return output
+
     @layer
-    def avg_pool(self, input, k_h, k_w, s_h, s_w, name, padding=DEFAULT_PADDING):
-        self.validate_padding(padding)
-        return tf.nn.avg_pool(input,
+    def avg_pool(self, input, k_h, k_w, s_h, s_w, name, pad=DEFAULT_PADDING, padding_mode='CONSTANT'):
+        log_info(name)
+        self.validate_padding(pad)
+
+        i_w = input.get_shape()[2]
+        i_h = input.get_shape()[1]
+
+        padding = pad
+        if isinstance(pad, int):
+            pad_mat = np.array([[0,0], [pad, pad], [pad, pad], [0, 0]])
+            input = tf.pad(input, paddings=pad_mat, mode=padding_mode)
+            padding = 'VALID'
+
+        output = tf.nn.avg_pool(input,
                               ksize=[1, k_h, k_w, 1],
                               strides=[1, s_h, s_w, 1],
                               padding=padding,
                               name=name)
+
+        o_w = output.get_shape()[2]
+        o_h = output.get_shape()[1]
+
+        logs  = '    AvgP: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+                .format(name, i_w, i_h, o_w, o_h)
+        logs += '        size = {0} * {1}, stride = {2} * {3}, pad = {4}\n'\
+                .format(k_w, k_h, s_w, s_h, pad)
+        log_info(logs)
+
+        return output
 
     @layer
     def lrn(self, input, radius, alpha, beta, name, bias=1.0):
@@ -260,15 +368,34 @@ class Network(object):
         return tf.nn.softmax(input, name)
         
     @layer
-    def batch_normalization(self, input, name, is_training, activation_fn=None, scale=True):
+    def batch_normalization(self, input, momentum, name, is_training, epsilon=1e-5, activation_fn=None, scale=True):
         with tf.variable_scope(name) as scope:
-            output = slim.batch_norm(
+
+            i_w = input.get_shape()[2]
+            i_h = input.get_shape()[1]
+
+            output = tf.layers.batch_normalization(
                 input,
-                activation_fn=activation_fn,
-                is_training=is_training,
-                updates_collections=None,
-                scale=scale,
-                scope=scope)
+                momentum = momentum,
+                epsilon = epsilon,
+                training=is_training,
+                name = scope.name
+                )
+            if not activation_fn == None:
+                output = activation_fn(output, name=scope.name+'/relu')
+
+            o_w = output.get_shape()[2]
+            o_h = output.get_shape()[1]
+
+            logs  = '    BN: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+                .format(name, i_w, i_h, o_w, o_h)
+            logs += '        momentum = {0}, epsilon = {1}\n'\
+                    .format(momentum, epsilon)
+
+            if not activation_fn == None:
+                logs += '        {0}: True\n'.format(activation_fn.__name__)
+            log_info(logs)
+
             return output
 
     @layer
@@ -278,7 +405,39 @@ class Network(object):
 
     @layer
     def concat_with_interp(self, inputs, nheight, nwidth, axis, name):
+        log_info(name)
     	for i in range(len(inputs)):
     		inputs[i] = tf.image.resize_images(inputs[i], [nheight, nwidth])
 
-    	return tf.concat(axis=axis, values=inputs, name=name)
+        output = tf.concat(axis=axis, values=inputs, name=name)
+
+        o_h = output.get_shape()[1]
+        o_w = output.get_shape()[2]
+
+        logs =  '    Concat & Interp: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+            .format(name, '_', '_', o_w, o_h)
+
+        logs += '        axis = {0}\n'.format(axis)
+
+        log_info(logs)
+
+    	return output
+
+    @layer
+    def interp(self, input, zoom_factor, name):
+        log_info(name)
+        shape = input.get_shape().as_list()
+        i_h = shape[1]
+        i_w = shape[2]
+
+        nh = i_h + (i_h-1) * (zoom_factor-1)
+        nw = i_w + (i_w-1) * (zoom_factor-1)
+        output = tf.image.resize_images(input, [nh, nw])
+
+        logs =  '    Interp: name = {0}, input = {1} * {2}, output = {3} * {4}\n'\
+            .format(name, i_w, i_h, nw, nh)
+        logs += '        zoom_factor = {0}\n'.format(zoom_factor)
+
+        log_info(logs)
+
+        return output
