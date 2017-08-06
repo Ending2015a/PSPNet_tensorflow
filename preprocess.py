@@ -5,8 +5,8 @@ from PIL import Image
 import os
 import math
 
-data_root = '/home/joehsiao/Dataset/cityscapes'
-train_list = '/home/joehsiao/Dataset/cityscapes/train.txt'
+data_root = '/data/cityscapes_dataset/cityscape'
+train_list = '/data/cityscapes_dataset/cityscape/list.txt'
 
 BATCH_SIZE = 1
 IMAGE_HEIGHT = 1024
