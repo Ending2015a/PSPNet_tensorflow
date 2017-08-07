@@ -35,30 +35,48 @@ def load(saver, sess, ckpt_path):
 	saver.restore(sess, ckpt_path)
 	print("Restored model from {}".format(ckpt_path))
 
+def onehot_encoder(label):
+    # 0-18 -> classes, 255 -> void label
+    label = tf.squeeze(label, squeeze_dims=[3])
+    label = tf.cast(label, tf.uint8)
+
+    onehot_label = tf.one_hot(label, depth=256)
+    labels = onehot_label[:, :, :, 0:19]
+    void_label = onehot_label[:, :, :, 255:]
+    gtFine = tf.concat([labels, void_label], axis=3)
+
+    return gtFine
+
 if __name__ == '__main__':
-    img_batch, anno_batch = inputs(IS_TRAINING)
+    img_batch, label_batch = inputs(IS_TRAINING)
 
     print('img_batch: {0}'.format(img_batch.get_shape()))
-    print('anno_batch: {0}'.format(anno_batch.get_shape()))
+    print('label_batch: {0}'.format(label_batch.get_shape()))
 
     net = PSPNetModel({'data': img_batch}, is_training=IS_TRAINING, num_classes=NUM_CLASSES+1)
 
     if train_with_resized == True:
     	raw_output = net.get_output()
+        resized_label = label_batch
     else:	# calculate loss with 1/8 size
     	raw_output = net.layers['conv6']
-    	anno_batch = tf.image.resize_images(anno_batch, [90, 90])
+    	resized_label = tf.image.resize_images(label_batch, [90, 90])
 
-    anno_batch = tf.squeeze(anno_batch, squeeze_dims=[3])
-    anno_batch = tf.cast(anno_batch, tf.uint8)
-
-    anno_batch_onehot = tf.one_hot(anno_batch, depth=256)
-    labels = anno_batch_onehot[:, :, :, 0:19]
-    void_label = anno_batch_onehot[:, :, :, 255:]
-    gtFine = tf.concat([labels, void_label], axis=3)
+    gtFine = onehot_encoder(resized_label) # label for train
 
     print('raw_output: {0}'.format(raw_output.get_shape()))
     print('gtFine: {0}'.format(gtFine.get_shape()))
+
+    ### prediction part
+    prediction = net.get_output()    
+    y = onehot_encoder(label_batch)
+    pred_indices = tf.argmax(prediction, axis=3)
+    y_indices = tf.argmax(y, axis=3)
+    correct_prediction = tf.equal(pred_indices, y_indices)
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+    print('pred_indices shape: {0}'.format(pred_indices.get_shape()))
+    print('y_indices shape: {0}'.format(y_indices.get_shape()))
 
     cross_entropies = tf.nn.softmax_cross_entropy_with_logits(logits=raw_output, labels=gtFine, name="softmax")
     cross_entropy_sum = tf.reduce_sum(cross_entropies)
@@ -89,15 +107,16 @@ if __name__ == '__main__':
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
+    
     for step in range(MAXIMUM_ITER):
         feed_dict = {step_ph: step + load_step}
-        loss, __, lr = sess.run([cross_entropy_sum, train_step, learning_rate], feed_dict=feed_dict)
-        
-        if step % 100 == 0:
-			print('iter {0}: loss={1}, lr: {2}'.format(step + load_step, loss, lr))
+        loss, __, lr, acc = sess.run([cross_entropy_sum, train_step, learning_rate, accuracy], feed_dict=feed_dict)
+
+        if step % 10 == 0:
+			print('iter {0}: loss: {1}, acc: {2}, lr: {3}'.format(step + load_step, loss, acc, lr))
         if step % 1000 == 0:
         	save(saver, sess, SNAPSHOT_DIR, step)
         	print('iter {0}: save checkpoint'.format(step + load_step))
-
+    
     coord.request_stop()
     coord.join(threads)
