@@ -154,3 +154,173 @@ def inputs(is_training, batch_size):
     print('Annotation batch size: ', anno_batch.get_shape())
 
     return img_batch, anno_batch, numOfgrids
+
+
+class Preprocessor(object):
+    self.image = None
+    self.anno = None
+    def __init__(self, crop_size, stride_rate=2./3., random_scale=[1.0, 2.0], random_rotate=[-10.0, 10.0], 
+            use_random_scale=True, use_random_rotate=True, use_random_flip=True):
+        self.crop_size = crop_size
+        self.stride_rate = stride_rate
+        self.random_scale = random_scale
+        self.random_rotate = random_rotate
+        self.use_random_scale = use_random_scale
+        self.use_random_rotate = use_random_rotate
+        self.use_random_flip = use_random_flip
+        self.end = False
+
+        self.stride = math.ceil(self.crop_size * self.stride_rate)
+
+    def _random_scale(self, image, anno=None):
+        random_size = tf.random_uniform([1], random_scale[0], random_scale[1], dtype=tf.float32, name='random_size')
+        random_height = tf.multiply(random_size, IMAGE_HEIGHT)
+        random_width = tf.multiply(random_size, IMAGE_WIDTH)
+        image = tf.image.resize_images(image, [random_height, random_width])
+        if not anno == None:
+            anno = tf.image.resize_images(anno, [random_height, random_width])
+
+        return image, anno
+
+    def _random_rotate(self, image, anno=None):
+        print('_random_rotate')
+
+        '''
+        TODO: random rotate
+
+        '''
+
+        '''
+        random_angle = tf.random_uniform([1], random_rotate[0], random_rotate[1], stype=tf.float32, name='random_angle')
+        image = tf.contrib.image.rotate(image, )
+
+        if not anno == None:
+        '''
+
+    def _random_flip(self, image, anno=None):
+        print('_random_flip')
+
+        '''
+        TODO: random flip
+
+        '''
+
+    def set_input(self, image, anno=None):
+        self.image = image
+        self.anno = anno
+        self.current_state = 0
+        self.current_piece = 0
+
+    def preprocess(self):
+
+        assert not self.image == None
+        
+        if use_random_scale:
+            image, anno = _random_scale(self.image, self.anno)
+
+
+        '''
+        TODO: if use_random_rotate:
+            
+        '''
+
+        '''
+        TODO: if use_random_flip:
+
+        '''
+
+
+        self.image_size = image.get_shape().as_list()[1:2]
+        if not anno == None:
+            self.anno_size = anno.get_shape().as_list()[1:2]
+            assert self.image_size[0:1] == self.anno_size[0:1]
+
+        self.h_grid = int(math.ceil(float(self.image_size[0]-self.crop_size)/stride) + 1)
+        self.w_grid = int(math.ceil(float(self.image_size[1]-self.crop_size)/stride) + 1)
+
+        self.current_state = 1
+        self.current_piece = 0
+        self.current_h_grid = 0
+        self.current_w_grid = 0
+
+        total_grids = self.h_grid * self.w_grid
+
+        print("-----Preprocessing------")
+        print("image size: ({h}, {w})".format(h=self.image_size[0], w=self.image_size[1]))
+        print("crop size: ({c_sz}, {c_sz})".format(c_sz=self.crop_size))
+        print("crop whole image into ({h}, {w}) grids ".format(h=self.h_grid, w=self.w_grid))
+        print("-----Preprocessing------")
+
+        self.end = False
+
+        return total_grids
+
+    def get_product(self):
+
+        # check if is end
+        if self.end:
+            return None, None
+
+        # get variable
+        h_grid = self.h_grid
+        w_grid = self.w_grid
+        idx_h = self.current_h_grid
+        idx_w = self.current_w_grid
+
+        # calculate crop range
+        s_w = int(idx_w * self.stride)
+        s_h = int(idx_h * self.stride)
+        # image_size = (h, w) 
+        e_w = min(s_w + self.crop_size-1, self.image_size[1] - 1)
+        e_h = min(s_h + self.crop_size-1, self.image_size[0] - 1)
+        s_w = e_w - self.crop_size + 1
+        s_h = e_h - self.crop_size + 1
+
+        sub_img = tf.image.crop_to_bounding_box(self.image, s_h, s_w, self.crop_size, self.crop_size)
+        
+        if not self.anno == None:
+            sub_anno = tf.image.crop_to_bounding_box(self.anno, s_h, s_w, self.crop_size, self.crop_size)
+
+        # move to next grid
+        self.current_w_grid = self.current_w_grid + 1
+
+        if self.current_w_grid >= self.w_grid:
+            self.current_w_grid = 0
+            self.current_h_grid = self.current_h_grid + 1
+            if self.current_w_grid >= self.h_grid:
+                self.end = True
+
+
+        if not self.anno == None:
+            return sub_img, sub_anno
+        else:
+            return sub_img
+
+    def is_end(self):
+        return self.end
+
+    def set_product(self):
+        print('set_product')
+
+        '''
+        TODO: set_product
+
+        '''
+
+
+    def postprocess(self):
+        print('postprocess')
+
+        '''
+        TODO: postprocess
+
+        '''
+
+    def set_current_grid(self, h, w):
+        assert h < self.h_grid
+        assert w < self.w_grid
+
+        self.current_h_grid = h
+        self.current_w_grid = w
+
+

@@ -136,8 +136,8 @@ if __name__ == '__main__':
         filename = 'mask' + str(i) + '.png'
         im.save(SAVE_DIR + filename)
 
-    show_image(img, 0)
-    show_image(label, 1)
+    #show_image(img, 0)
+    #show_image(label, 1)
 
     coord.request_stop()
     coord.join(threads)
