@@ -24,16 +24,21 @@ SAVE_DIR = './output/'
 train_with_resized = False
 
 # colour map
-label_colours = [(0, 0, 192)
-                # 0=background
-                ,(128,0,0),(0,128,0),(128,128,0),(0,0,128),(128,0,128)
-                # 1=aeroplane, 2=bicycle, 3=bird, 4=boat, 5=bottle
-                ,(0,128,128),(128,128,128),(64,0,0),(192,0,0),(64,128,0)
-                # 6=bus, 7=car, 8=cat, 9=chair, 10=cow
-                ,(192,128,0),(64,0,128),(192,0,128),(64,128,128),(192,128,128)
-                # 11=diningtable, 12=dog, 13=horse, 14=motorbike, 15=person
-                ,(0,64,0),(128,64,0),(0,64,128),(255,255,255)]
-
+label_colours = [(0.5020, 0.2510, 0.5020), (0.9569, 0.1373, 0.9098), (0.2745, 0.2745, 0.2745)
+                # 0 = road, 1 = sidewalk, 2 = building
+                ,(0.4000, 0.4000, 0.6118), (0.7451, 0.6000, 0.6000), (0.6000, 0.6000, 0.6000)
+                # 3 = wall, 4 = fence, 5 = pole
+                ,(0.9804, 0.6667, 0.1176), (0.8627, 0.8627, 0.0000), (0.4196, 0.5569, 0.1373)
+                # 6 = traffic light, 7 = traffic sign, 8 = vegetation
+                ,(0.5961, 0.9843, 0.5961), (0.2745, 0.5098, 0.7059), (0.8627, 0.0784, 0.2353)
+                # 9 = terrain, 10 = sky, 11 = person 
+                ,(1.0000, 0.0000, 0.0000), (0.0000, 0.0000, 0.5569), (0.0000, 0.0000, 0.2745)
+                # 12 = rider, 13 = car, 14 = truck
+                ,(0.0000, 0.2353, 0.3922), (0.0000, 0.3137, 0.3922), (0.0000, 0.0000, 0.9020)
+                # 15 = bus, 16 = train, 17 = motocycle
+                ,(0.4667, 0.0431, 0.1255), (1.0000, 1.0000, 1.0000)]
+                # 18 = bicycle, 19 = void label
+label_colours = np.array(label_colours)
 network.log_to_file()
 
 def load(saver, sess, ckpt_path):
@@ -66,7 +71,7 @@ def decode_labels(mask, numofClasses):
         for j_, j in enumerate(mask[i, :, :]):
             for k_, k in enumerate(j):
                 if k < n:
-                    pixels[k_, j_] = label_colours[k]
+                    pixels[k_, j_] = tuple((label_colours[k] * 255).astype(int))
 
         outputs[i] = np.array(img)
 
@@ -99,11 +104,15 @@ if __name__ == '__main__':
     prediction = predict(img_batch)
     print('output shape: {0}'.format(prediction.get_shape()))
 
+    s = label_colours[0] * 255
+    print(s)
+    s = s.astype(int)
+    print(s)
     sess = tf.Session()
     init = tf.global_variables_initializer()
     sess.run(init)
 
-    print('Try to restore from checkpoint...')
+    print('Try to restore from checkpoint...') 
     restore_var = tf.global_variables()
     ckpt = tf.train.get_checkpoint_state(SNAPSHOT_DIR)
     load_step = int(os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
@@ -118,6 +127,7 @@ if __name__ == '__main__':
     threads = tf.train.start_queue_runners(coord=coord, sess=sess)
     
     _preds, img, label = sess.run([prediction, img_batch, label_batch])
+
     msk = decode_labels(_preds, NUM_CLASSES+1)
 
     for i in range(BATCH_SIZE):
