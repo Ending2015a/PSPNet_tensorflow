@@ -59,7 +59,7 @@ def predict(img_batch):
             prediction_list.append(prediction)
 
     output = tf.concat(prediction_list, axis=0)
-    return output
+    return output, net
 
 def decode_labels(mask, numofClasses):
     n, h, w = mask.shape
@@ -101,7 +101,7 @@ if __name__ == '__main__':
     print('label batch shape: {0}'.format(label_batch.get_shape().as_list()))
     print('number of grids: {0}'.format(np.prod(numOfgrids)))
 
-    prediction = predict(img_batch)
+    prediction, net = predict(img_batch)
     print('output shape: {0}'.format(prediction.get_shape()))
 
     sess = tf.Session()
@@ -122,7 +122,8 @@ if __name__ == '__main__':
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord, sess=sess)
     
-    _preds, img, label = sess.run([prediction, img_batch, label_batch])
+    feed_dict = {net.use_dropout: 0.0}
+    _preds, img, label = sess.run([prediction, img_batch, label_batch], feed_dict=feed_dict)
 
     msk = decode_labels(_preds, NUM_CLASSES+1)
 
