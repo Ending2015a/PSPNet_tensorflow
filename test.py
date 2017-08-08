@@ -104,10 +104,6 @@ if __name__ == '__main__':
     prediction = predict(img_batch)
     print('output shape: {0}'.format(prediction.get_shape()))
 
-    s = label_colours[0] * 255
-    print(s)
-    s = s.astype(int)
-    print(s)
     sess = tf.Session()
     init = tf.global_variables_initializer()
     sess.run(init)
