@@ -10,8 +10,8 @@ IS_TRAINING = True
 NUM_CLASSES = 19
 CROP_SIZE = 713
 OUT_SIZE = 713
-
 BATCH_SIZE = 1
+
 LEARNING_RATE = 0.0001
 POWER = 0.9
 MOMENTUM = 0.9
@@ -56,7 +56,8 @@ if __name__ == '__main__':
     print('label batch shape: {0}'.format(label_batch.get_shape().as_list()))
     print('number of grids: {0}'.format(np.prod(numOfgrids)))
 
-    net = PSPNetModel({'data': img_batch}, is_training=IS_TRAINING, num_classes=NUM_CLASSES+1)
+    with tf.variable_scope('pspent') as scope:
+        net = PSPNetModel({'data': img_batch}, is_training=IS_TRAINING, num_classes=NUM_CLASSES+1)
 
     if train_with_resized == True:
     	raw_output = net.get_output()
@@ -105,13 +106,15 @@ if __name__ == '__main__':
     restore_var = [v for v in tf.global_variables()]
     saver = tf.train.Saver(var_list=tf.global_variables(), max_to_keep=10)
     ckpt = tf.train.get_checkpoint_state(SNAPSHOT_DIR)
-    load_step = int(os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
+   
 
     if ckpt and ckpt.model_checkpoint_path:
         loader = tf.train.Saver(var_list=restore_var)
+        load_step = int(os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
         load(loader, sess, ckpt.model_checkpoint_path)
     else:
         print('No checkpoint file found.')
+        load_step = 0
 
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord, sess=sess)
